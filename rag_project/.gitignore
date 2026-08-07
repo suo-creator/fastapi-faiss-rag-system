@@ -1,0 +1,27 @@
+# 密钥配置
+.env
+
+# 虚拟环境
+venv/
+.venv/
+
+# Python缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# PyCharm IDE
+.idea/
+*.iml
+
+# 向量库、上传数据
+data/vector_store/
+data/uploads/
+
+# VSCode
+.vscode/
+
+# 日志
+*.log
+*.index
+*.pkl
