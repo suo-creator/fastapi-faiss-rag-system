@@ -2,7 +2,10 @@ from starlette.responses import StreamingResponse
 
 from fastapi import FastAPI, APIRouter
 from pydantic import BaseModel
+
+from app.services import vector_store
 from app.services.llm_service import call_llm,stream_llm
+from app.core.exceptions import BusinessException
 # 创建路由组
 router = APIRouter()
 
@@ -20,6 +23,8 @@ def health_check():
 
 @router.post("/chat")
 def chat(req: ChatRequest):
+    if vector_store is None or len(vector_store.documents) == 0:
+        raise BusinessException(code=400, msg="知识库为空，请先上传文档")
     answer = call_llm(req.question)
     return {"answer":f"模拟回答：收到你的问题{answer}，等待接入大模型"}
 
