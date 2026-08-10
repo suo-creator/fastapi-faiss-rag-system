@@ -87,7 +87,7 @@ EMBEDDING_MODEL_NAME=text-embedding-v2
 2. 确认虚拟环境处于激活状态
 3. 执行启动命令:
 ```bash
-uvicorn app.main:app --reload
+uvicorn main:app --reload
 ```
 4. 服务启动成功后可访问:
 在线接口文档(Swagger UI):`http://127.0.0.1:8000/docs`
@@ -330,6 +330,17 @@ messages：消息表，存储每一轮的用户提问与 AI 回答，关联会�
 7. 法定节假日加班和普通周末加班，补偿方式有什么区别？
 8. 紧急事假最晚需要在当天什么时间完成报备？
 
+## Docker一键容器化部署
+### 前置条件
+本地安装 Docker Desktop（Windows/macOS）或Docker+Compose插件(Linux)，Docker服务正常启动
+
+### 一键启动步骤
+1. 克隆项目至本地
+2. 在项目根目录创建 `.env` 文件，填入你的模型密钥配置
+3. 终端进入项目根目录，执行一键启动命令
+```bash
+docker compose up
+```
 ## 后续迭代规划
 * 支持 PDF、Word 等多格式文档解析与上传
 * 接入用户鉴权、接口访问限流机制

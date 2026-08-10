@@ -18,7 +18,7 @@ st.write("✅ 基于文档内容智能问答，拒绝编造")
 st.write("✅ 回答自带引用来源，可追溯原文段落")
 
 st.divider()
-st.caption("开发进度：第4周 Day1 首页搭建完成")
+
 
 import requests
 

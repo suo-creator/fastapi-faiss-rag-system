@@ -1,0 +1,20 @@
+FROM python:3.10-slim
+
+# 系统依赖：faiss编译、文件处理
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 分层安装依赖，缓存加速
+COPY requirements.txt .
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+
+# 复制全部业务代码
+COPY . .
+
+# 对外暴露端口
+EXPOSE 8000
+
+# 启动命令：必须0.0.0.0允许外部/容器访问，去掉--reload生产环境不用
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
