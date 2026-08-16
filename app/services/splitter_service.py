@@ -1,10 +1,12 @@
-from langchain_text_splitters import CharacterTextSplitter
-def split_text(text: str, filename: str, chunk_size: int = 800):
+from langchain_text_splitters import CharacterTextSplitter, RecursiveCharacterTextSplitter
+
+
+def split_text(text: str, filename: str, chunk_size: int = 300):
     # ========== 保留你原有切分逻辑 ==========
     # 把你之前的切分代码放在这里，最终输出纯文本列表 chunk_list
     # 示例：如果用的是字符切分，替换成自己的实现即可
 
-    splitter = CharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=50)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=50,separators=['\n\n','\n','。','，',','])
     chunk_list = splitter.split_text(text)
 
 

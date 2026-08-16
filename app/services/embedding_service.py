@@ -17,6 +17,7 @@ def get_embedding(text: str) -> list[float]:
         json=payload
     )
     data = resp.json()
+    print('接口完整返回内容：', data)
     return data["data"][0]["embedding"]
 
 def get_embeddings(texts: list[str]) -> list[list[float]]:

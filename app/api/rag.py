@@ -68,7 +68,7 @@ async def only_ask(req: AskRequest):
     if vector_store is None:
         return {'answer':'知识库为空，请先上传文档'}
     emb_q = await asyncio.to_thread(get_embedding, req.question)
-    results = vector_store.search(emb_q, top_k=3)
+    results = vector_store.search(emb_q)
     return {"question": req.question, "related_docs": results}
 
 
@@ -96,7 +96,7 @@ async def rag_answer(req: AskRequest,
 
     # 3. 原有检索、大模型调用逻辑保持不变
     emb_q = await asyncio.to_thread(get_embedding, req.question)
-    results = vector_store.search(emb_q, top_k=3)
+    results = vector_store.search(emb_q)
     # 拼接带来源的上下文
     context_parts = []
     for item in results:

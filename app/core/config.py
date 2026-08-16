@@ -18,4 +18,4 @@ class Settings:
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", 500))
     CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", 50))
 settings = Settings()
-
+print(f'{settings.TOP_K}')

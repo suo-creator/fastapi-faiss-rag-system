@@ -2,6 +2,7 @@ import faiss
 import json
 import os
 import numpy as np
+from app.core.config import settings
 VECTOR_STORE_PATH = "./data/vector_store"
 INDEX_FILE = os.path.join(VECTOR_STORE_PATH, "faiss.index")
 DOCS_FILE = os.path.join(VECTOR_STORE_PATH, "documents.json")
@@ -25,7 +26,10 @@ class FaissVectorStore:
             "metadata": metadata if metadata else {}
         })
 
-    def search(self, query_emb, top_k: int = 3):
+    def search(self, query_emb, top_k: int = None):
+        if top_k is None:
+            top_k = settings.TOP_K
+        print(f'top_k: {top_k}')
         # 关键：查询向量也要转 np.float32 的二维数组
         arr = np.array([query_emb], dtype=np.float32)
         distances, indexes = self.index.search(arr, top_k)

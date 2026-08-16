@@ -14,6 +14,7 @@ def call_llm(question: str) -> str:
     }
     resp = requests.post(f"{settings.LLM_BASE_URL}/chat/completions", headers=headers, json=payload)
     result = resp.json()
+    print('大模型接口完整返回：', result)
     return result["choices"][0]["message"]["content"]
 
 # 流式生成器
