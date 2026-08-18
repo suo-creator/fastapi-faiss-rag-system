@@ -79,7 +79,7 @@ LLM_BASE_URL=https://api.deepseek.com/v1
 LLM_MODEL_NAME=deepseek-chat
 EMBEDDING_API_KEY=你的向量模型API密钥
 EMBEDDING_BASE_URL=向量模型接口地址
-EMBEDDING_MODEL_NAME=text-embedding-v2
+EMBEDDING_MODEL=text-embedding-v2
 ```
 
 ## 启动项目
