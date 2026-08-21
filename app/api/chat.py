@@ -1,18 +1,22 @@
 from starlette.responses import StreamingResponse
-
-from fastapi import FastAPI, APIRouter
+from fastapi import APIRouter
 from pydantic import BaseModel
-
-from app.services import vector_store
-from app.services.llm_service import call_llm,stream_llm
+from app.services import vector_store as vector_store_module
+from app.services.llm_service import call_llm, stream_llm
 from app.core.exceptions import BusinessException
 # 创建路由组
 router = APIRouter()
 
-
 # 请求数据模型
 class ChatRequest(BaseModel):
     question: str
+
+
+def _ensure_knowledge_base():
+    store = vector_store_module.vector_store
+    if store is None or len(store.documents) == 0:
+        raise BusinessException(code=400, msg="知识库为空，请先上传文档")
+    return store
 
 # 用同步函数def.异步函数async def 会阻塞整个服务主循环，让性能变差
 # 健康检查接口
@@ -23,14 +27,14 @@ def health_check():
 
 @router.post("/chat")
 def chat(req: ChatRequest):
-    if vector_store is None or len(vector_store.documents) == 0:
-        raise BusinessException(code=400, msg="知识库为空，请先上传文档")
+    _ensure_knowledge_base()
     answer = call_llm(req.question)
-    return {"answer":f"模拟回答：收到你的问题{answer}，等待接入大模型"}
+    return {"answer": answer}
 
 
 @router.post("/chat/stream")
 def chat_stream(req: ChatRequest):
+    _ensure_knowledge_base()
     generator = stream_llm(req.question)
     # media_type 设置文本流
     return StreamingResponse(generator, media_type="text/event-stream")

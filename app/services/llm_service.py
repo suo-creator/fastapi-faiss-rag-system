@@ -1,5 +1,29 @@
 import requests
 from app.core.config import settings
+from app.core.exceptions import BusinessException
+
+REQUEST_TIMEOUT = 60
+
+
+def _parse_response(response: requests.Response) -> dict:
+    try:
+        result = response.json()
+    except ValueError as exc:
+        raise BusinessException(code=502, msg="大模型接口返回了无法解析的响应") from exc
+
+    if not response.ok:
+        error = result.get("error", result)
+        if isinstance(error, dict):
+            error = error.get("message", error.get("code", "未知错误"))
+        if isinstance(error, str) and "insufficient balance" in error.lower():
+            error = "大模型账户余额不足，请充值或更换可用的 API Key"
+        raise BusinessException(code=502, msg=f"大模型接口调用失败：{error}")
+
+    if not isinstance(result.get("choices"), list) or not result["choices"]:
+        raise BusinessException(code=502, msg="大模型接口返回格式异常：缺少 choices")
+    return result
+
+
 def call_llm(question: str) -> str:
     """非流式调用大模型，返回完整回答"""
     headers = {
@@ -12,10 +36,22 @@ def call_llm(question: str) -> str:
             {"role": "user", "content": question}
         ]
     }
-    resp = requests.post(f"{settings.LLM_BASE_URL}/chat/completions", headers=headers, json=payload)
-    result = resp.json()
-    print('大模型接口完整返回：', result)
-    return result["choices"][0]["message"]["content"]
+    try:
+        resp = requests.post(
+            f"{settings.LLM_BASE_URL}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=REQUEST_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        raise BusinessException(code=502, msg=f"无法连接大模型接口：{exc}") from exc
+
+    result = _parse_response(resp)
+    message = result["choices"][0].get("message", {})
+    content = message.get("content")
+    if not content:
+        raise BusinessException(code=502, msg="大模型接口返回格式异常：缺少回答内容")
+    return content
 
 # 流式生成器
 def stream_llm(question: str):
@@ -29,12 +65,17 @@ def stream_llm(question: str):
         "stream": True   # 开启流式！关键参数
     }
     # stream=True 必须加上
-    response = requests.post(
-        url=f"{settings.LLM_BASE_URL}/chat/completions",
-        headers=headers,
-        json=payload,
-        stream=True
-    )
+    try:
+        response = requests.post(
+            url=f"{settings.LLM_BASE_URL}/chat/completions",
+            headers=headers,
+            json=payload,
+            stream=True,
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise BusinessException(code=502, msg=f"无法连接大模型接口：{exc}") from exc
 
     # 逐行读取返回流
     for line in response.iter_lines():
@@ -49,6 +90,9 @@ def stream_llm(question: str):
                 import json
                 chunk = json.loads(data_str)
                 # 取出增量文本
-                delta = chunk["choices"][0]["delta"].get("content", "")
+                choices = chunk.get("choices", [])
+                if not choices:
+                    continue
+                delta = choices[0].get("delta", {}).get("content", "")
                 if delta:
                     yield delta

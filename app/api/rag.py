@@ -1,12 +1,12 @@
 import time
+from sqlalchemy import text
 
 from fastapi import APIRouter, UploadFile, File
-from pip._internal.index import sources
 from pydantic import BaseModel
 from app.services.file_service import read_file
 from app.services.splitter_service import split_text
 from app.services.embedding_service import get_embedding
-from app.services.vector_store import vector_store, FaissVectorStore
+from app.services import vector_store as vector_store_service
 import asyncio
 from sqlalchemy.orm import Session
 from fastapi import Depends
@@ -24,12 +24,13 @@ class AskRequest(BaseModel):
 async def upload_doc(file: UploadFile = File(...),
                      db: Session = Depends(get_db) # 注入数据库会话
                      ):
-    global vector_store
     start_time = time.time()
     logger.info(f"开始上传文档：{file.filename}")
     try:
-        if vector_store is None:
-            vector_store = FaissVectorStore()
+        if vector_store_service.vector_store is None:
+            from app.services.vector_store import FaissVectorStore
+            vector_store_service.vector_store = FaissVectorStore()
+        store = vector_store_service.vector_store
         # 读取文件
         content = await read_file(file)
         # 文本切分
@@ -37,7 +38,7 @@ async def upload_doc(file: UploadFile = File(...),
         for item in chunks:
             logger.debug(f'正在存入chunk: {item}')
             emb = await asyncio.to_thread(get_embedding, item["text"])
-            vector_store.add_text(item["text"], emb, item["metadata"])
+            store.add_text(item["text"], emb, item["metadata"])
             # 保存文档记录到数据库
         doc_record = Document(
             filename=file.filename,
@@ -64,11 +65,11 @@ async def upload_doc(file: UploadFile = File(...),
 
 @router.post("/ask")
 async def only_ask(req: AskRequest):
-    global vector_store
-    if vector_store is None:
+    store = vector_store_service.vector_store
+    if store is None or len(store.documents) == 0:
         return {'answer':'知识库为空，请先上传文档'}
     emb_q = await asyncio.to_thread(get_embedding, req.question)
-    results = vector_store.search(emb_q)
+    results = store.search(emb_q)
     return {"question": req.question, "related_docs": results}
 
 
@@ -94,9 +95,13 @@ async def rag_answer(req: AskRequest,
     )
     db.add(user_msg)
 
+    store = vector_store_service.vector_store
+    if store is None or len(store.documents) == 0:
+        return {'question': req.question, 'answer': '知识库为空，请先上传文档', 'related_docs': [], 'sources': []}
+
     # 3. 原有检索、大模型调用逻辑保持不变
     emb_q = await asyncio.to_thread(get_embedding, req.question)
-    results = vector_store.search(emb_q)
+    results = store.search(emb_q)
     # 拼接带来源的上下文
     context_parts = []
     for item in results:
@@ -129,10 +134,22 @@ async def rag_answer(req: AskRequest,
     }
 
 @router.post("/clear")
-def clear_vector():
-    global vector_store
-    vector_store = None
-    return {'msg': '向量库已经清空'}
+def clear_vector(db: Session = Depends(get_db)):
+    store = vector_store_service.vector_store
+    if store is not None:
+        store.reset()
+
+    db.query(Document).delete(synchronize_session=False)
+    db.commit()
+
+    sequence_exists = db.execute(
+        text("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sqlite_sequence'")
+    ).scalar()
+    if sequence_exists:
+        db.execute(text("DELETE FROM sqlite_sequence WHERE name = 'documents'"))
+        db.commit()
+
+    return {'msg': '向量库和文档记录已经清空，下次上传将从 doc_id=1 开始'}
 
 
 @router.post("/conversation/create")

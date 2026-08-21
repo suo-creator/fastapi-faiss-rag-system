@@ -25,6 +25,14 @@ class FaissVectorStore:
             "text": text,
             "metadata": metadata if metadata else {}
         })
+        self._save()
+
+    def reset(self):
+        self.index = faiss.IndexFlatL2(self.dim)
+        self.documents = []
+        for file_path in (INDEX_FILE, DOCS_FILE):
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
     def search(self, query_emb, top_k: int = None):
         if top_k is None:
@@ -43,13 +51,13 @@ class FaissVectorStore:
     def _save(self):
         faiss.write_index(self.index, INDEX_FILE)
         with open(DOCS_FILE, "w", encoding="utf-8") as f:
-            json.dump(self.text_list, f, ensure_ascii=False)
+            json.dump(self.documents, f, ensure_ascii=False)
 
     def _load(self):
         if os.path.exists(INDEX_FILE) and os.path.exists(DOCS_FILE):
             self.index = faiss.read_index(INDEX_FILE)
             with open(DOCS_FILE, "r", encoding="utf-8") as f:
-                self.text_list = json.load(f)
+                self.documents = json.load(f)
 
 # 全局单例，其他文件直接导入使用
 vector_store = FaissVectorStore(dim=1024)

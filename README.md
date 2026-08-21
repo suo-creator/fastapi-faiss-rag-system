@@ -65,7 +65,7 @@ venv\Scripts\activate
 #Mac / Linux 系统激活虚拟环境
 source venv/bin/activate
 ```
-
+                                            
 ### 3. 安装项目依赖
 ```bash
 pip install fastapi uvicorn python-dotenv requests langchain faiss-cpu streamlit
@@ -79,7 +79,7 @@ LLM_BASE_URL=https://api.deepseek.com/v1
 LLM_MODEL_NAME=deepseek-chat
 EMBEDDING_API_KEY=你的向量模型API密钥
 EMBEDDING_BASE_URL=向量模型接口地址
-EMBEDDING_MODEL_NAME=text-embedding-v2
+EMBEDDING_MODEL=text-embedding-v2
 ```
 
 ## 启动项目
@@ -146,7 +146,7 @@ uvicorn main:app --reload
 ```json
 {
   "doc_id": 1,
-  "filename": "员工考勤管理制度.txt",
+  "filename": "德州中燃城市燃气发展有限公司工作规则.txt",
   "chunk_count": 12,
   "msg": "文档上传并入库成功"
 }
@@ -172,7 +172,7 @@ uvicorn main:app --reload
     {
       "text": "第三章 考勤处罚规则...",
       "metadata": {
-        "filename": "员工考勤管理制度.txt",
+        "filename": "德州中燃城市燃气发展有限公司工作规则.txt",
         "paragraph": 3,
         "page": null
       }
@@ -180,7 +180,7 @@ uvicorn main:app --reload
   ],
   "sources": [
     {
-      "filename": "员工考勤管理制度.txt",
+      "filename": "德州中燃城市燃气发展有限公司工作规则.txt",
       "paragraph": 3
     }
   ]
@@ -310,7 +310,7 @@ messages：消息表，存储每一轮的用户提问与 AI 回答，关联会�
 
 1. 修改代码文件 `splitter_service.py` 中的 `chunk_size` 参数，依次设置为 300、500、800 三组。
 2. 删除项目目录下的向量库持久化文件 `index.faiss`、`index.pkl`，清空历史向量索引，避免旧数据干扰实验结果。
-3. 重启 FastAPI 后端服务，重新上传《员工考勤管理制度.txt》文档，完成新一轮文本切割与向量化入库。
+3. 重启 FastAPI 后端服务，重新上传《德州中燃城市燃气发展有限公司工作规则.txt》文档，完成新一轮文本切割与向量化入库。
 4. 固定8道相同的测试问题，分别搭配 `Top-K = 1、2、3` 三种召回策略进行提问，按照三项指标打分并记录数据：
    - 回答完整性（1~5分）
    - 回答准确性（1~5分）

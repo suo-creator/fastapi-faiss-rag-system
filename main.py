@@ -32,7 +32,7 @@ from app.core.logger import logger
 async def business_exception_handler(request: Request, exc: BusinessException):
     logger.warning(f"业务异常：{exc.msg}")
     return JSONResponse(
-        status_code=200,
+        status_code=exc.code,
         content={
             "code": exc.code,
             "msg": exc.msg,
