@@ -1,3 +1,5 @@
+import os
+
 import streamlit as st
 
 # 页面基础配置（必须写在最前面）
@@ -23,7 +25,7 @@ st.divider()
 import requests
 
 # ========== 后端接口地址，改成你自己的 ==========
-BASE_URL = "http://127.0.0.1:8000/rag"
+BASE_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000/rag")
 
 st.subheader("📤 第一步：上传文档")
 uploaded_file = st.file_uploader("选择一个 TXT 文档", type=["txt"])

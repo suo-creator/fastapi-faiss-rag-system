@@ -2,7 +2,9 @@ fastapi
 uvicorn
 streamlit
 numpy
-pandas
-sentence-transformers
-chromadb
 python-dotenv
+requests
+python-multipart
+sqlalchemy
+faiss-cpu
+langchain-text-splitters

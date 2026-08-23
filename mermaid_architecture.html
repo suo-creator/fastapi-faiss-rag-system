@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG 项目架构图</title>
+  <style>
+    :root {
+      --ink: #18212b;
+      --muted: #64717d;
+      --paper: #f5f1e8;
+      --panel: #fffdf8;
+      --line: #d8d0c2;
+      --accent: #d95f3f;
+      --accent-dark: #9f3826;
+      --blue: #236b83;
+      --shadow: 0 18px 50px rgba(45, 38, 28, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(217, 95, 63, .12), transparent 30rem),
+        linear-gradient(135deg, #f8f5ee 0%, var(--paper) 48%, #e9f0ed 100%);
+      font-family: Georgia, "Noto Serif SC", "Microsoft YaHei", serif;
+    }
+
+    header {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 56px 28px 30px;
+    }
+
+    .eyebrow {
+      color: var(--accent-dark);
+      font: 700 12px/1.2 "Microsoft YaHei", sans-serif;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    h1 { margin: 12px 0 10px; font-size: clamp(34px, 5vw, 66px); line-height: 1.05; }
+    .subtitle { max-width: 720px; color: var(--muted); font-size: 18px; line-height: 1.7; }
+
+    main { max-width: 1220px; margin: 0 auto; padding: 0 28px 60px; }
+    .section {
+      margin-top: 24px;
+      padding: 26px;
+      background: rgba(255, 253, 248, .84);
+      border: 1px solid rgba(216, 208, 194, .9);
+      box-shadow: var(--shadow);
+    }
+    h2 { margin: 0 0 18px; font-size: 24px; }
+    .diagram { overflow-x: auto; padding: 8px 0; }
+    .mermaid { min-width: 760px; }
+
+    .endpoint-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .endpoint {
+      padding: 16px;
+      border-left: 4px solid var(--accent);
+      background: #faf6ed;
+    }
+    code { color: var(--blue); font: 700 14px/1.5 Consolas, monospace; }
+    .endpoint p { margin: 7px 0 0; color: var(--muted); line-height: 1.5; }
+    footer { max-width: 1220px; margin: 0 auto; padding: 0 28px 36px; color: var(--muted); font: 13px/1.6 "Microsoft YaHei", sans-serif; }
+
+    @media (max-width: 640px) {
+      header { padding-top: 34px; }
+      main { padding: 0 16px 40px; }
+      header { padding-left: 16px; padding-right: 16px; }
+      .section { padding: 18px 14px; }
+    }
+  </style>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "base", themeVariables: {
+      fontFamily: "Microsoft YaHei, sans-serif",
+      primaryColor: "#fff0e8",
+      primaryTextColor: "#18212b",
+      primaryBorderColor: "#d95f3f",
+      lineColor: "#64717d",
+      secondaryColor: "#e9f0ed",
+      tertiaryColor: "#faf6ed"
+    }});
+  </script>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">RAG NEW / SYSTEM MAP</div>
+    <h1>智能文档问答系统</h1>
+    <div class="subtitle">从 TXT 文档上传、文本切分、向量化，到 FAISS 检索和带来源回答的完整项目结构。</div>
+  </header>
+
+  <main>
+    <section class="section">
+      <h2>项目总体架构</h2>
+      <div class="diagram mermaid">
+flowchart LR
+    U[用户] --> UI[Streamlit 前端<br/>app.py]
+    UI -->|HTTP 请求| API[FastAPI 服务<br/>main.py]
+    API --> RAG["/rag 路由<br/>app/api/rag.py"]
+    API --> CHAT["/chat 路由<br/>app/api/chat.py"]
+
+    RAG --> FS[文件服务<br/>读取 TXT]
+    FS --> SPLIT[文本切分服务<br/>RecursiveCharacterTextSplitter]
+    SPLIT --> EMB[Embedding 服务]
+    EMB --> EXT_E[外部 Embedding API]
+    EMB --> VS[FAISS 向量库<br/>data/vector_store]
+
+    RAG -->|提问向量| EMB
+    VS -->|Top-K 相关片段| PROMPT[上下文 + 来源<br/>Prompt]
+    PROMPT --> LLM[LLM 服务]
+    LLM --> EXT_L[外部大模型 API]
+    LLM -->|回答 + related_docs| UI
+
+    RAG --> DB[SQLite / SQLAlchemy<br/>rag.db]
+    DB --> DOC[Document]
+    DB --> CONV[Conversation / Message]
+
+    classDef client fill:#e9f0ed,stroke:#236b83,color:#18212b,stroke-width:2px;
+    classDef service fill:#fff0e8,stroke:#d95f3f,color:#18212b,stroke-width:2px;
+    classDef storage fill:#faf6ed,stroke:#a78b63,color:#18212b,stroke-width:2px;
+    class U,UI client;
+    class API,RAG,CHAT,FS,SPLIT,EMB,PROMPT,LLM service;
+    class VS,DB,DOC,CONV storage;
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>文档上传与建库时序</h2>
+      <div class="diagram mermaid">
+sequenceDiagram
+    actor User as 用户
+    participant UI as Streamlit
+    participant API as FastAPI
+    participant File as file_service
+    participant Split as splitter_service
+    participant Embed as embedding_service
+    participant FAISS as FaissVectorStore
+    participant DB as SQLite
+
+    User->>UI: 选择 TXT 文件
+    UI->>API: POST /rag/upload multipart file
+    API->>File: read_file(file)
+    File-->>API: 文本内容
+    API->>Split: split_text(content, filename)
+    Split-->>API: chunks + metadata
+    loop 每个文本块
+      API->>Embed: get_embedding(chunk.text)
+      Embed-->>API: embedding 向量
+      API->>FAISS: add_text(text, embedding, metadata)
+    end
+    API->>DB: 保存 Document 记录
+    DB-->>API: doc_id / chunk_count
+    API-->>UI: 上传成功结果
+    UI-->>User: 显示建库成功
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>问题回答与来源追溯时序</h2>
+      <div class="diagram mermaid">
+sequenceDiagram
+    actor User as 用户
+    participant UI as Streamlit
+    participant API as FastAPI
+    participant DB as SQLite
+    participant Embed as Embedding API
+    participant FAISS as FAISS 向量库
+    participant LLM as LLM API
+
+    User->>UI: 输入问题
+    UI->>API: POST /rag/answer {question}
+    alt 没有 conversation_id
+      API->>DB: 创建 Conversation
+      DB-->>API: conversation_id
+    end
+    API->>DB: 保存 user Message
+    API->>Embed: get_embedding(question)
+    Embed-->>API: 查询向量
+    API->>FAISS: search(query_embedding, top_k)
+    FAISS-->>API: 相关文本块 + metadata
+    API->>API: 拼接上下文与来源标签
+    API->>LLM: call_llm(prompt)
+    LLM-->>API: answer
+    API-->>UI: answer + related_docs + sources
+    UI-->>User: 展示回答和文件段落来源
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>主要接口</h2>
+      <div class="endpoint-grid">
+        <div class="endpoint"><code>POST /rag/upload</code><p>上传 TXT，切分、向量化并写入 FAISS 与 Document。</p></div>
+        <div class="endpoint"><code>POST /rag/answer</code><p>检索相关片段，调用大模型并返回回答与来源。</p></div>
+        <div class="endpoint"><code>POST /rag/ask</code><p>只执行向量检索，返回相关文档片段。</p></div>
+        <div class="endpoint"><code>POST /rag/clear</code><p>清空当前内存中的向量库引用。</p></div>
+        <div class="endpoint"><code>POST /chat</code><p>通用聊天接口，依赖已有知识库。</p></div>
+        <div class="endpoint"><code>GET /health</code><p>服务健康检查。</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>依据当前项目中的 app.py、main.py、app/api、app/services、app/core 和 app/models 生成。</footer>
+</body>
+</html>
