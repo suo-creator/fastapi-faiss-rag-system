@@ -229,3 +229,5 @@ docker compose up --build
 - 增加自动化测试、RAG 评估指标和持续集成
 - 根据数据规模评估迁移至 Milvus 或 PGVector
 - 扫描版 PDF 接入 OCR（如 PaddleOCR / RapidOCR）
+
+<img width="2428" height="1231" alt="image" src="https://github.com/user-attachments/assets/4f94cdfb-8b86-4302-8397-038ee10a631c" />
