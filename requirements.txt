@@ -8,3 +8,8 @@ python-multipart
 sqlalchemy
 faiss-cpu
 langchain-text-splitters
+rank_bm25
+jieba
+sentence-transformers
+pymupdf
+python-docx

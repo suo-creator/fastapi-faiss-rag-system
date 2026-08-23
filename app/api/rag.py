@@ -7,6 +7,10 @@ from app.services.file_service import read_file
 from app.services.splitter_service import split_text
 from app.services.embedding_service import get_embedding
 from app.services import vector_store as vector_store_service
+from app.services.bm25_store import bm25_store
+from app.services.retrieval_service import hybrid_search
+from app.services import memory_service
+from app.services.llm_service import call_llm_messages
 import asyncio
 from sqlalchemy.orm import Session
 from fastapi import Depends
@@ -38,7 +42,11 @@ async def upload_doc(file: UploadFile = File(...),
         for item in chunks:
             logger.debug(f'正在存入chunk: {item}')
             emb = await asyncio.to_thread(get_embedding, item["text"])
-            store.add_text(item["text"], emb, item["metadata"])
+            # FAISS 向量路：add_text 返回全局 chunk_id
+            chunk_id = store.add_text(item["text"], emb, item["metadata"])
+            # BM25 关键词路：同一 chunk_id 同步入库，保证两路可对齐融合
+            item["metadata"]["chunk_id"] = chunk_id
+            bm25_store.add_text(item["text"], item["metadata"])
             # 保存文档记录到数据库
         doc_record = Document(
             filename=file.filename,
@@ -68,8 +76,7 @@ async def only_ask(req: AskRequest):
     store = vector_store_service.vector_store
     if store is None or len(store.documents) == 0:
         return {'answer':'知识库为空，请先上传文档'}
-    emb_q = await asyncio.to_thread(get_embedding, req.question)
-    results = store.search(emb_q)
+    results = await asyncio.to_thread(hybrid_search, req.question)
     return {"question": req.question, "related_docs": results}
 
 
@@ -99,9 +106,8 @@ async def rag_answer(req: AskRequest,
     if store is None or len(store.documents) == 0:
         return {'question': req.question, 'answer': '知识库为空，请先上传文档', 'related_docs': [], 'sources': []}
 
-    # 3. 原有检索、大模型调用逻辑保持不变
-    emb_q = await asyncio.to_thread(get_embedding, req.question)
-    results = store.search(emb_q)
+    # 3. 混合检索（向量 + BM25 加权融合），替换原纯向量检索
+    results = await asyncio.to_thread(hybrid_search, req.question)
     # 拼接带来源的上下文
     context_parts = []
     for item in results:
@@ -110,21 +116,36 @@ async def rag_answer(req: AskRequest,
         context_parts.append(f"{source_tag}\n{item['text']}")
     context_text = "\n\n".join(context_parts)
 
+    # 4. 分级记忆
+    # 短期记忆：当前会话最近 N 轮（含刚保存的当前问题，最后一条需排除）
+    recent = await asyncio.to_thread(memory_service.build_recent_history, db, conversation_id)
+    # 长期记忆：语义检索相关历史问答
+    long_term_texts = await asyncio.to_thread(memory_service.recall_long_term, req.question)
 
+    # 5. 组装多轮 messages（system + 历史对话 + 当前问题）
+    system_prompt = (
+        "你是文档问答助手。必须严格基于提供的上下文作答，"
+        "上下文没有的信息直接回复：未检索到相关资料。"
+        "回答结尾标注信息来源，格式：来源：文件名-第x段。"
+    )
+    long_term_block = ""
+    if long_term_texts:
+        long_term_block = "\n\n".join(f"[历史参考]\n{t}" for t in long_term_texts)
 
-    # 优化prompt，强制标注来源
-    prompt = f"""参考下面的上下文回答用户问题。
-    规则：
-    1. 必须严格基于上下文作答，上下文没有的信息直接回复：未检索到相关资料
-    2. 回答结尾标注信息来源，格式：来源：文件名-第x段
+    messages = [{"role": "system", "content": system_prompt}]
+    # 短期历史对话（排除最后一条，即当前问题）
+    for m in recent[:-1]:
+        messages.append({"role": m["role"], "content": m["content"]})
+    user_content = f"上下文：\n{context_text}\n\n{long_term_block}\n\n用户问题：{req.question}"
+    messages.append({"role": "user", "content": user_content})
 
-    上下文：
-    {context_text}
+    answer = await asyncio.to_thread(call_llm_messages, messages)
 
-    用户问题：{req.question}
-    """
-    from app.services.llm_service import call_llm
-    answer = await asyncio.to_thread(call_llm,prompt)
+    # 6. 保存助手回复 + 写入长期记忆
+    db.add(Message(conversation_id=conversation_id, role="assistant", content=answer))
+    db.commit()
+    await asyncio.to_thread(memory_service.save_turn_to_memory, req.question, answer, conversation_id)
+
     sources = [item["metadata"] for item in results]
     return {
         "question": req.question,
@@ -138,6 +159,7 @@ def clear_vector(db: Session = Depends(get_db)):
     store = vector_store_service.vector_store
     if store is not None:
         store.reset()
+    bm25_store.reset()
 
     db.query(Document).delete(synchronize_session=False)
     db.commit()

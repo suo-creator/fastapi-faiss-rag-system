@@ -25,16 +25,22 @@ def _parse_response(response: requests.Response) -> dict:
 
 
 def call_llm(question: str) -> str:
-    """非流式调用大模型，返回完整回答"""
+    """非流式调用大模型，返回完整回答（单轮）"""
+    return call_llm_messages([{"role": "user", "content": question}])
+
+
+def call_llm_messages(messages: list[dict]) -> str:
+    """非流式调用大模型，支持多轮对话，返回完整回答
+
+    messages: [{"role": "system"/"user"/"assistant", "content": str}, ...]
+    """
     headers = {
         "Authorization": f"Bearer {settings.LLM_API_KEY}",
         "Content-Type": "application/json"
     }
     payload = {
         "model": settings.LLM_MODEL_NAME,
-        "messages": [
-            {"role": "user", "content": question}
-        ]
+        "messages": messages
     }
     try:
         resp = requests.post(

@@ -15,7 +15,7 @@ st.divider()
 
 # 项目介绍
 st.subheader("项目功能")
-st.write("✅ 支持上传 TXT 文档，自动构建知识库")
+st.write("✅ 支持上传 TXT / PDF / Word 文档，自动构建知识库")
 st.write("✅ 基于文档内容智能问答，拒绝编造")
 st.write("✅ 回答自带引用来源，可追溯原文段落")
 
@@ -28,14 +28,14 @@ import requests
 BASE_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000/rag")
 
 st.subheader("📤 第一步：上传文档")
-uploaded_file = st.file_uploader("选择一个 TXT 文档", type=["txt"])
+uploaded_file = st.file_uploader("选择一个文档（TXT / PDF / Word）", type=["txt", "md", "pdf", "docx"])
 
 if uploaded_file is not None:
     if st.button("开始上传并构建知识库"):
         with st.spinner("正在上传并处理文档..."):
             try:
                 # 调用后端 /upload 接口
-                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "text/plain")}
+                files = {"file": (uploaded_file.name, uploaded_file.getvalue())}
                 response = requests.post(f"{BASE_URL}/upload", files=files)
 
                 if response.status_code == 200:
@@ -43,7 +43,8 @@ if uploaded_file is not None:
                     # 把文件名存到会话里，后面用
                     st.session_state["current_file"] = uploaded_file.name
                 else:
-                    st.error("❌ 上传失败，请检查后端服务是否启动")
+                    msg = response.json().get("msg", "上传失败") if response.text else "上传失败"
+                    st.error(f"❌ 上传失败：{msg}")
             except Exception as e:
                 st.error(f"❌ 请求出错：{str(e)}")
 
